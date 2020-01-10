@@ -4,6 +4,11 @@ use geo::area::Area;
 use geo::{LineString, Point, Polygon};
 use std::fmt;
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::ser::SerializeSeq;
+
+// use serde::{Deserialize, Serialize};
+
 // 简单多边形
 // 连通
 #[derive(PartialEq, Clone, Debug)]
@@ -72,5 +77,20 @@ impl fmt::Display for SimplePolygon {
         }
         res.truncate(res.len() - 2);
         write!(f, "SimplePolygon: [{}]", res)
+    }
+}
+
+impl Serialize for SimplePolygon {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let pts = self.vertices();
+        let mut seq = serializer.serialize_seq(Some(pts.len()))?;
+        for pt in self.vertices().iter() {
+            seq.serialize_element(&pt.x())?;
+            seq.serialize_element(&pt.y())?;
+        }
+        seq.end()
     }
 }

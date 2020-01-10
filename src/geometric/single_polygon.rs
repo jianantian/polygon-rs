@@ -3,13 +3,10 @@ use super::{ConvexPolygon, Draw, SimplePolygon};
 use crate::base::Color;
 use geo::area::Area;
 use geo::{LineString, Point, Polygon};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
-
-// enum GeneralPolygonBase {
-//     Multi(MultiPolygon<f64>),
-//     Single(Polygon<f64>),
-// }
 
 // 多边形
 // 连通
@@ -152,6 +149,20 @@ impl Draw for SinglePolygon {
         if fill {
             ctx.fill();
         }
+    }
+}
+
+impl Serialize for SinglePolygon {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.num_hole() + 1))?;
+        seq.serialize_element(&self.out_polygon())?;
+        for pol in self.holes() {
+            seq.serialize_element(&pol)?;
+        }
+        seq.end()
     }
 }
 

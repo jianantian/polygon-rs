@@ -3,7 +3,7 @@ pub mod geometric;
 mod utils;
 use base::Color;
 use geometric::{ConvexHull, Draw, FromPoint, SimplePolygon};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::f64;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -52,29 +52,62 @@ pub fn start() {
             .unwrap(),
     );
 
-    let pts: Vec<(f64, f64)> = vec![(100., 100.), (100., 220.), (60., 220.), (30., 260.)];
-    let pol = SimplePolygon::from_points(pts);
-    let color = Color::from((125, 123, 0));
-    pol.fill(ctx.clone(), &color);
+    // let pts: Vec<(f64, f64)> = vec![(100., 100.), (100., 220.), (60., 220.), (30., 260.)];
+    // let pol = SimplePolygon::from_points(pts);
+    // let color = Color::from((125, 123, 0));
+    // pol.fill(ctx.clone(), &color);
 
-    let convex_pol = pol.convex_hull();
-    convex_pol.stroke(ctx.clone(), &color);
+    // let convex_pol = pol.convex_hull();
+    // convex_pol.stroke(ctx.clone(), &color);
 
-    // draw(ctx, &canvas).unwrap();
+    draw(ctx, &canvas).unwrap();
+}
+
+#[wasm_bindgen]
+pub fn clear_canvas(ctx: &web_sys::CanvasRenderingContext2d, w: f64, h: f64){
+    ctx.clear_rect(0., 0., w, h);
 }
 
 pub fn draw(
     context: Rc<web_sys::CanvasRenderingContext2d>,
     canvas: &web_sys::HtmlCanvasElement,
 ) -> Result<(), JsValue> {
+    let color = Color::from((125, 123, 0));
+
+    let mut start: (f64, f64) = (0., 0.);
+    context.set_line_width(2.0);
+    context.set_stroke_style(&JsValue::from_str(&color.to_string()));
+    context.set_fill_style(&JsValue::from_str(&color.to_string()));
+
+    let mut pts: Vec<(f64, f64)> = vec![];
+    let pts_ref = Rc::new(RefCell::new(pts));
+    // context.set_line_dash(&JsValue::from_serde(&(4, 2)).unwrap())?;
     let pressed = Rc::new(Cell::new(false));
     {
         let context = context.clone();
         let pressed = pressed.clone();
+        let pts = pts_ref.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
-            context.begin_path();
-            context.move_to(event.offset_x() as f64, event.offset_y() as f64);
-            pressed.set(true);
+            if event.which() == 1 {
+                if !pressed.get() {
+                    context.begin_path();
+                    pressed.set(true);
+                    start = (event.offset_x() as f64, event.offset_y() as f64);
+                    pts.borrow_mut().push(start);
+                    context.move_to(start.0, start.1);
+                }
+            } else if event.which() == 3 {
+                context.line_to(start.0, start.1);
+                context.fill();
+                pressed.set(false);
+                log(&format!("The points is : {:?}", pts.borrow()));
+                let pol = SimplePolygon::from_points(&*pts.borrow());
+                log(&format!(
+                    "The polygon is : {}, area is: {}",
+                    pol,
+                    pol.area()
+                ));
+            }
         }) as Box<dyn FnMut(_)>);
         canvas.add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())?;
         closure.forget();
@@ -83,15 +116,16 @@ pub fn draw(
     {
         let context = context.clone();
         let pressed = pressed.clone();
+        let pts = pts_ref.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
             if pressed.get() {
-                context.line_to(event.offset_x() as f64, event.offset_y() as f64);
+                let pt = (event.offset_x() as f64, event.offset_y() as f64);
+                context.line_to(pt.0, pt.1);
+                pts.borrow_mut().push(pt);
                 context.stroke();
-                context.begin_path();
-                context.move_to(event.offset_x() as f64, event.offset_y() as f64);
             }
         }) as Box<dyn FnMut(_)>);
-        canvas.add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())?;
+        canvas.add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
         closure.forget();
     }
 

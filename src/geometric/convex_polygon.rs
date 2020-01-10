@@ -1,6 +1,8 @@
 use super::utils::to_point_list;
 use geo::area::Area;
 use geo::{LineString, Point, Polygon};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
 // 简单多边形
@@ -54,10 +56,25 @@ impl fmt::Display for ConvexPolygon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut res = String::from("");
         let pts = self.vertices();
-        for pt in &pts[..pts.len() - 1]  {
+        for pt in &pts[..pts.len() - 1] {
             res.push_str(&format!("({}, {}), ", pt.x(), pt.y()))
         }
         res.truncate(res.len() - 2);
         write!(f, "ConvexPolygon: [{}]", res)
+    }
+}
+
+impl Serialize for ConvexPolygon {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let pts = self.vertices();
+        let mut seq = serializer.serialize_seq(Some(pts.len()))?;
+        for pt in self.vertices().iter() {
+            seq.serialize_element(&pt.x())?;
+            seq.serialize_element(&pt.y())?;
+        }
+        seq.end()
     }
 }
